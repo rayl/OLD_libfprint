@@ -61,19 +61,6 @@
  */
 
 enum {
-	M_INIT_Q,
-	M_INIT_READ,
-	M_INIT_NEXT,
-	M_INIT_NUM_STATES,
-};
-
-enum {
-	M_READ_B,
-	M_READ_2,
-	M_READ_NUM_STATES,
-};
-
-enum {
 	M_NEXT_D,
 	M_NEXT_B,
 	M_NEXT_E,
@@ -94,13 +81,16 @@ struct validity_dev {
 	int seqnum;
 };
 
-#define EP_IN			(1 | LIBUSB_ENDPOINT_IN)
-#define EP_OUT			(1 | LIBUSB_ENDPOINT_OUT)
+#define EP_IN(n)			(n | LIBUSB_ENDPOINT_IN)
+#define EP_OUT(n)			(n | LIBUSB_ENDPOINT_OUT)
 
-#define BULK_TIMEOUT 4000
+#define BULK_TIMEOUT 20
+
+#define PKTSIZE 292
+
 
 /* The first two bytes of data will be overwritten with seqnum */
-static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
+static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 {
 	struct validity_dev *vdev = dev->priv;
 	int transferred;
@@ -111,14 +101,14 @@ static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
 	data[0] = vdev->seqnum & 0xff;
 	data[1] = (vdev->seqnum>>8) & 0xff;
 
-	r = libusb_bulk_transfer(dev->udev, EP_OUT, data, len, &transferred, BULK_TIMEOUT);
+	r = libusb_bulk_transfer(dev->udev, EP_OUT(n), data, len, &transferred, BULK_TIMEOUT);
 
 	if (r < 0) {
 		fp_err("bulk write error %d", r);
 		return r;
 
 	} else if (transferred < len) {
-		fp_err("unexpected short write %d/%zd", r, len);
+		fp_err("unexpected short write %d/%zd", transferred, len);
 		return -EIO;
 
 	} else {
@@ -126,7 +116,7 @@ static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
 	}
 }
 
-static int recv(struct fp_img_dev *dev, unsigned char *data, size_t len)
+static int recv(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 {
 	struct validity_dev *vdev = dev->priv;
 	int transferred;
@@ -134,9 +124,9 @@ static int recv(struct fp_img_dev *dev, unsigned char *data, size_t len)
 
 	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
 
-	r = libusb_bulk_transfer(dev->udev, EP_IN, data, len, &transferred, BULK_TIMEOUT);
+	r = libusb_bulk_transfer(dev->udev, EP_IN(n), data, len, &transferred, BULK_TIMEOUT);
 
-	if (r < 0) {
+	if (r < 0 && r != -7) {
 		fp_err("bulk read error %d", r);
 		return r;
 	}
@@ -144,12 +134,65 @@ static int recv(struct fp_img_dev *dev, unsigned char *data, size_t len)
 	vdev->seqnum++;
 
 	if (transferred < len) {
-		fp_err("unexpected short read %d/%zd", r, len);
+		fp_err("unexpected short read %d/%zd", transferred, len);
 		return -EIO;
 	} else {
 		return 0;
 	}
 }
+
+
+/******************************************************************************************************/
+enum {
+	M_READ_B,
+	M_READ_2,
+	M_READ_NUM_STATES,
+};
+
+static void m_read_state(struct fpi_ssm *ssm)
+{
+	struct fp_img_dev *dev = ssm->priv;
+
+	switch (ssm->cur_state) {
+	case M_READ_B:
+	{
+		unsigned char b1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x14, 0x00 };
+		unsigned char b2[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
+		unsigned char b3[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x11, 0x00 };
+		unsigned char b4[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x62, 0x00, 0x32, 0x00 };
+		unsigned char rr[0x40000];
+		send (dev, 1, b1, 0x08);
+		recv (dev, 1, rr, 0x0a);
+		send (dev, 1, b2, 0x06);
+		recv (dev, 1, rr, 0x08);
+		recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
+		send (dev, 1, b3, 0x08);
+		recv (dev, 1, rr, 0x0a);
+		send (dev, 1, b4, 0x0a);
+		recv (dev, 1, rr, 0x0a);
+		fpi_ssm_next_state(ssm);
+		break;
+	}
+	case M_READ_2:
+	{
+		unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
+		unsigned char rr[20*PKTSIZE];
+		send (dev, 1, b1, 0x0e);
+		recv (dev, 1, rr, 0x08);
+		recv (dev, 2, rr, 20*PKTSIZE);
+		break;
+	}
+	}
+}
+
+
+/******************************************************************************************************/
+enum {
+	M_INIT_Q,
+	M_INIT_READ,
+	M_INIT_NEXT,
+	M_INIT_NUM_STATES,
+};
 
 static void m_init_state(struct fpi_ssm *ssm)
 {
@@ -161,21 +204,22 @@ static void m_init_state(struct fpi_ssm *ssm)
 		unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
 		unsigned char q2[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x55, 0x00, 0x08, 0x00 };
 		unsigned char rr[0x30];
-		send (dev, q1, 0x07);
-		recv (dev, rr, 0x30);
-		send (dev, q1, 0x07);
-		recv (dev, rr, 0x30);
-		send (dev, q2, 0x0a);
-		recv (dev, rr, 0x0a);
+		send (dev, 1, q1, 0x07);
+		recv (dev, 1, rr, 0x30);
+		send (dev, 1, q1, 0x07);
+		recv (dev, 1, rr, 0x30);
+		send (dev, 1, q2, 0x0a);
+		recv (dev, 1, rr, 0x0a);
 		fpi_ssm_next_state(ssm);
 		break;
 	}
-
 	case M_INIT_READ:
-		fp_dbg("M_INIT_READ");
-		fpi_ssm_next_state(ssm);
+	{
+		struct fpi_ssm *subsm = fpi_ssm_new(dev->dev, m_read_state, M_READ_NUM_STATES);
+		subsm->priv = dev;
+		fpi_ssm_start_subsm(ssm, subsm);
 		break;
-
+	}
 	case M_INIT_NEXT:
 		fp_dbg("M_INIT_NEXT");
 		fpi_ssm_next_state(ssm);
