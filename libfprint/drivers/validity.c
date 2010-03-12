@@ -21,6 +21,7 @@
 
 #include <errno.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <glib.h>
 #include <libusb.h>
@@ -59,16 +60,6 @@
  *     m_next { D, B, E }
  *     m_loop { A, 1, m_read, C, 3, m_next }
  */
-
-enum {
-	M_LOOP_A,
-	M_LOOP_1,
-	M_LOOP_READ,
-	M_LOOP_C,
-	M_LOOP_3,
-	M_LOOP_NEXT,
-	M_LOOP_NUM_STATES,
-};
 
 struct validity_dev {
 	int seqnum;
@@ -158,11 +149,16 @@ static void do_b(struct fp_img_dev *dev)
 	recv (dev, 1, rr, 0x0a);
 	send (dev, 1, b2, 0x06);
 	recv (dev, 1, rr, 0x08);
-	recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
+	//recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
 	send (dev, 1, b3, 0x08);
 	recv (dev, 1, rr, 0x0a);	// this comes back with one bit different on linux...
 	send (dev, 1, b4, 0x0a);
 	recv (dev, 1, rr, 0x0a);
+}
+
+static void do_c(struct fp_img_dev *dev)
+{
+	fp_dbg("---");
 }
 
 static void do_d(struct fp_img_dev *dev)
@@ -178,7 +174,12 @@ static void do_e(struct fp_img_dev *dev)
 	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x88, 0x13, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
 	unsigned char rr[0x08];
 	send (dev, 1, b1, 0x0e);
-	recv (dev, 1, rr, 0x08);
+	recv (dev, 1, rr, 0x08);	// this comes back with two extra bits set on linux...
+}
+
+static void do_1(struct fp_img_dev *dev)
+{
+	fp_dbg("---");
 }
 
 static void do_2(struct fp_img_dev *dev)
@@ -189,6 +190,12 @@ static void do_2(struct fp_img_dev *dev)
 	recv (dev, 1, rr, 0x08);
 	recv (dev, 2, rr, 20*PKTSIZE);	// read a small image?
 }
+
+static void do_3(struct fp_img_dev *dev)
+{
+	fp_dbg("---");
+}
+
 
 /******************************************************************************************************/
 enum {
@@ -215,6 +222,7 @@ static void m_next_state(struct fpi_ssm *ssm)
 
 	case M_NEXT_E:
 		do_e(dev);
+		fpi_ssm_next_state(ssm);
 		break;
 	}
 }
@@ -239,10 +247,126 @@ static void m_read_state(struct fpi_ssm *ssm)
 
 	case M_READ_2:
 		do_2(dev);
+		fpi_ssm_next_state(ssm);
 		break;
 	}
 }
 
+
+/******************************************************************************************************/
+enum {
+	M_LOOP_1,
+	M_LOOP_READ,
+	M_LOOP_C,
+	M_LOOP_3,
+	M_LOOP_NEXT,
+	M_LOOP_NUM_STATES,
+};
+
+static void m_loop_state(struct fpi_ssm *ssm)
+{
+	struct fp_img_dev *dev = ssm->priv;
+	struct fpi_ssm *subsm;
+
+	switch (ssm->cur_state) {
+	case M_LOOP_1:
+		fp_dbg("*****************************************************************");
+		do_1(dev);
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_LOOP_READ:
+		subsm = fpi_ssm_new(dev->dev, m_read_state, M_READ_NUM_STATES);
+		subsm->priv = dev;
+		fpi_ssm_start_subsm(ssm, subsm);
+		break;
+
+	case M_LOOP_C:
+		do_c(dev);
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_LOOP_3:
+		do_3(dev);
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_LOOP_NEXT:
+		subsm = fpi_ssm_new(dev->dev, m_next_state, M_NEXT_NUM_STATES);
+		subsm->priv = dev;
+		fpi_ssm_start_subsm(ssm, subsm);
+		break;
+	}
+}
+
+static void m_loop_complete(struct fpi_ssm *ssm)
+{
+	fp_dbg("status %d", ssm->error);
+	fpi_ssm_free(ssm);
+}
+
+
+/******************************************************************************************************/
+static void finger_detection_cb(struct libusb_transfer *transfer);
+
+static void start_finger_detection(struct fp_img_dev *dev)
+{
+	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
+	unsigned char rr[0x0b];
+	struct libusb_transfer *transfer;
+	unsigned char *data;
+	int r;
+
+	do {
+		usleep(1000000);
+		send (dev, 1, q1, 0x06);
+		recv (dev, 1, rr, 0x0b);
+	} while (rr[0x0a] != 0x02);
+
+	return;
+
+	transfer = libusb_alloc_transfer(0);
+	data = g_malloc(0x0b);
+	libusb_fill_bulk_transfer(transfer, dev->udev, EP_IN(1), data, 0x0b, finger_detection_cb, dev, 2000);
+	r = libusb_submit_transfer(transfer);
+	if (r < 0) {
+		g_free(data);
+		libusb_free_transfer(transfer);
+		fpi_imgdev_session_error(dev, r);
+	}
+}
+
+static void finger_detection_cb(struct libusb_transfer *transfer)
+{
+	struct fp_img_dev *dev = transfer->user_data;
+	unsigned char *data = transfer->buffer;
+
+	if (transfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		fpi_imgdev_session_error(dev, -EIO);
+		goto out;
+	} else if (transfer->length != transfer->actual_length) {
+		fpi_imgdev_session_error(dev, -EPROTO);
+		goto out;
+	}
+
+	/* determine finger presence */
+	if (data[0x0a] == 0x02) {
+		struct fpi_ssm *ssm;
+		/* finger present, start capturing */
+		fp_dbg("found");
+		fpi_imgdev_report_finger_status(dev, TRUE);
+		ssm = fpi_ssm_new(dev->dev, m_loop_state, M_LOOP_NUM_STATES);
+		ssm->priv = dev;
+		fpi_ssm_start(ssm, m_loop_complete);
+	} else {
+		fp_dbg("again");
+		/* no finger, poll for a new histogram */
+		start_finger_detection(dev);
+	}
+out:
+	g_free(data);
+	libusb_free_transfer(transfer);
+}
 
 /******************************************************************************************************/
 enum {
@@ -282,12 +406,16 @@ static void m_init_complete(struct fpi_ssm *ssm)
 	struct fp_img_dev *dev = ssm->priv;
 	fp_dbg("status %d", ssm->error);
 	fpi_imgdev_activate_complete(dev, ssm->error);
+	if (!ssm->error)
+		start_finger_detection(dev);
 	fpi_ssm_free(ssm);
 }
 
+
+
+/******************************************************************************************************/
 static int dev_activate(struct fp_img_dev *dev, enum fp_imgdev_state state)
 {
-	struct validity_dev *vdev = dev->priv;
 	struct fpi_ssm *ssm = fpi_ssm_new(dev->dev, m_init_state, M_INIT_NUM_STATES);
 	ssm->priv = dev;
 	fpi_ssm_start(ssm, m_init_complete);
