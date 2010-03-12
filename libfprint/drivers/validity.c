@@ -27,6 +27,69 @@
 
 #include <fp_internal.h>
 
+/*
+ * The Validity sensor seems to operate as follows, where:
+ *    - s labels a recurring block of USB transfers
+ *    - n is the number of transfers in the block
+ *    - b is how many <=16 byte lines are transferred
+ *  
+ *           s       n        b
+ *          ---     ---      ---
+ *     init: Q       3        10
+ *           B       4         8
+ *           2       1       366
+ *           D       1         2
+ *           B       4         8
+ *           E       1         2
+ *     loop: A       n        2n    * 50 ms poll for finger
+ *           1       1     20001
+ *           B       4         8
+ *           2       1       366
+ *           C      10        24
+ *           3       1       366
+ *           D       2         2
+ *           B       4         8
+ *           E       1         2
+ *           loop
+ *  
+ * This is modelled with the following state machines:
+ *  
+ *     m_init { Q, m_read, m_next }
+ *     m_read { B, 2 }
+ *     m_next { D, B, E }
+ *     m_loop { A, 1, m_read, C, 3, m_next }
+ */
+
+enum {
+	M_INIT_Q,
+	M_INIT_READ,
+	M_INIT_NEXT,
+	M_INIT_NUM_STATES,
+};
+
+enum {
+	M_READ_B,
+	M_READ_2,
+	M_READ_NUM_STATES,
+};
+
+enum {
+	M_NEXT_D,
+	M_NEXT_B,
+	M_NEXT_E,
+	M_NEXT_NUM_STATES,
+};
+
+enum {
+	M_LOOP_A,
+	M_LOOP_1,
+	M_LOOP_READ,
+	M_LOOP_C,
+	M_LOOP_3,
+	M_LOOP_NEXT,
+	M_LOOP_NUM_STATES,
+};
+
 struct validity_dev {
 	int foo;
 };
