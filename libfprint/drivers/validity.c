@@ -91,12 +91,112 @@ enum {
 };
 
 struct validity_dev {
-	int foo;
+	int seqnum;
 };
+
+#define EP_IN			(1 | LIBUSB_ENDPOINT_IN)
+#define EP_OUT			(1 | LIBUSB_ENDPOINT_OUT)
+
+#define BULK_TIMEOUT 4000
+
+/* The first two bytes of data will be overwritten with seqnum */
+static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
+{
+	struct validity_dev *vdev = dev->priv;
+	int transferred;
+	int r;
+
+	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
+
+	data[0] = vdev->seqnum & 0xff;
+	data[1] = (vdev->seqnum>>8) & 0xff;
+
+	r = libusb_bulk_transfer(dev->udev, EP_OUT, data, len, &transferred, BULK_TIMEOUT);
+
+	if (r < 0) {
+		fp_err("bulk write error %d", r);
+		return r;
+
+	} else if (transferred < len) {
+		fp_err("unexpected short write %d/%zd", r, len);
+		return -EIO;
+
+	} else {
+		return 0;
+	}
+}
+
+static int recv(struct fp_img_dev *dev, unsigned char *data, size_t len)
+{
+	struct validity_dev *vdev = dev->priv;
+	int transferred;
+	int r;
+
+	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
+
+	r = libusb_bulk_transfer(dev->udev, EP_IN, data, len, &transferred, BULK_TIMEOUT);
+
+	if (r < 0) {
+		fp_err("bulk read error %d", r);
+		return r;
+	}
+
+	vdev->seqnum++;
+
+	if (transferred < len) {
+		fp_err("unexpected short read %d/%zd", r, len);
+		return -EIO;
+	} else {
+		return 0;
+	}
+}
+
+static void m_init_state(struct fpi_ssm *ssm)
+{
+	struct fp_img_dev *dev = ssm->priv;
+
+	switch (ssm->cur_state) {
+	case M_INIT_Q:
+	{
+		unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
+		unsigned char q2[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x55, 0x00, 0x08, 0x00 };
+		unsigned char rr[0x30];
+		send (dev, q1, 0x07);
+		recv (dev, rr, 0x30);
+		send (dev, q1, 0x07);
+		recv (dev, rr, 0x30);
+		send (dev, q2, 0x0a);
+		recv (dev, rr, 0x0a);
+		fpi_ssm_next_state(ssm);
+		break;
+	}
+
+	case M_INIT_READ:
+		fp_dbg("M_INIT_READ");
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_INIT_NEXT:
+		fp_dbg("M_INIT_NEXT");
+		fpi_ssm_next_state(ssm);
+		break;
+	}
+}
+
+static void m_init_complete(struct fpi_ssm *ssm)
+{
+	struct fp_img_dev *dev = ssm->priv;
+	fp_dbg("status %d", ssm->error);
+	fpi_imgdev_activate_complete(dev, ssm->error);
+	fpi_ssm_free(ssm);
+}
 
 static int dev_activate(struct fp_img_dev *dev, enum fp_imgdev_state state)
 {
-	fpi_imgdev_activate_complete(dev, 0);
+	struct validity_dev *vdev = dev->priv;
+	struct fpi_ssm *ssm = fpi_ssm_new(dev->dev, m_init_state, M_INIT_NUM_STATES);
+	ssm->priv = dev;
+	fpi_ssm_start(ssm, m_init_complete);
 	return 0;
 }
 
@@ -108,7 +208,10 @@ static void dev_deactivate(struct fp_img_dev *dev)
 static int dev_init(struct fp_img_dev *dev, unsigned long driver_data)
 {
 	int r;
-	dev->priv = g_malloc0(sizeof(struct validity_dev));
+	struct validity_dev *vdev = g_malloc0(sizeof(struct validity_dev));
+
+	vdev->seqnum = 0;
+	dev->priv = vdev;
 
 	r = libusb_claim_interface(dev->udev, 0);
 	if (r < 0)
