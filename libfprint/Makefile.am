@@ -11,6 +11,7 @@ AES2501_SRC = drivers/aes2501.c drivers/aes2501.h
 AES4000_SRC = drivers/aes4000.c
 FDU2000_SRC = drivers/fdu2000.c
 VCOM5S_SRC = drivers/vcom5s.c
+VALIDITY_SRC = drivers/validity.c
 
 DRIVER_SRC =
 OTHER_SRC =
@@ -85,6 +86,10 @@ endif
 
 if ENABLE_VCOM5S
 DRIVER_SRC += $(VCOM5S_SRC)
+endif
+
+if ENABLE_VALIDITY
+DRIVER_SRC += $(VALIDITY_SRC)
 endif
 
 #if ENABLE_FDU2000

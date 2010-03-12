@@ -19,7 +19,7 @@ AC_SUBST(lt_major)
 AC_SUBST(lt_revision)
 AC_SUBST(lt_age)
 
-all_drivers="upekts upektc upeksonly vcom5s uru4000 fdu2000 aes1610 aes2501 aes4000"
+all_drivers="upekts upektc upeksonly vcom5s validity uru4000 fdu2000 aes1610 aes2501 aes4000"
 
 require_imagemagick='no'
 require_aeslib='no'
@@ -27,6 +27,7 @@ enable_upekts='no'
 enable_upektc='no'
 enable_upeksonly='no'
 enable_vcom5s='no'
+enable_validity='no'
 enable_uru4000='no'
 enable_fdu2000='no'
 enable_aes1610='no'
@@ -64,6 +65,10 @@ for driver in `echo ${drivers} | sed -e 's/,/ /g' -e 's/,$//g'`; do
 			AC_DEFINE([ENABLE_VCOM5S], [], [Build Veridicom 5thSense driver])
 			enable_vcom5s="yes"
 		;;
+		validity)
+			AC_DEFINE([ENABLE_VALIDITY], [], [Build Validity driver])
+			enable_validity="yes"
+		;;
 		aes2501)
 			AC_DEFINE([ENABLE_AES2501], [], [Build AuthenTec AES2501 driver])
 			require_aeslib="yes"
@@ -87,6 +92,7 @@ AM_CONDITIONAL([ENABLE_UPEKTS], [test "$enable_upekts" != "no"])
 #AM_CONDITIONAL([ENABLE_UPEKTC], [test "$enable_upektc" != "no"])
 AM_CONDITIONAL([ENABLE_UPEKSONLY], [test "$enable_upeksonly" != "no"])
 AM_CONDITIONAL([ENABLE_VCOM5S], [test "$enable_vcom5s" != "no"])
+AM_CONDITIONAL([ENABLE_VALIDITY], [test "$enable_validity" != "no"])
 AM_CONDITIONAL([ENABLE_URU4000], [test "$enable_uru4000" != "no"])
 #AM_CONDITIONAL([ENABLE_FDU2000], [test "$enable_fdu2000" != "no"])
 #AM_CONDITIONAL([ENABLE_AES1610], [test "$enable_aes1610" != "no"])

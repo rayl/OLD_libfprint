@@ -358,6 +358,9 @@ static struct fp_img_driver * const img_drivers[] = {
 #ifdef ENABLE_VCOM5S
 	&vcom5s_driver,
 #endif
+#ifdef ENABLE_VALIDITY
+	&validity_driver,
+#endif
 #ifdef ENABLE_UPEKSONLY
 	&upeksonly_driver,
 #endif
