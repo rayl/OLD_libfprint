@@ -61,13 +61,6 @@
  */
 
 enum {
-	M_NEXT_D,
-	M_NEXT_B,
-	M_NEXT_E,
-	M_NEXT_NUM_STATES,
-};
-
-enum {
 	M_LOOP_A,
 	M_LOOP_1,
 	M_LOOP_READ,
@@ -141,6 +134,91 @@ static int recv(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 	}
 }
 
+static void do_q(struct fp_img_dev *dev)
+{
+	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
+	unsigned char q2[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x55, 0x00, 0x08, 0x00 };
+	unsigned char rr[0x30];
+	send (dev, 1, q1, 0x07);
+	recv (dev, 1, rr, 0x30);
+	send (dev, 1, q1, 0x07);
+	recv (dev, 1, rr, 0x30);
+	send (dev, 1, q2, 0x0a);
+	recv (dev, 1, rr, 0x0a);
+}
+
+static void do_b(struct fp_img_dev *dev)
+{
+	unsigned char b1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x14, 0x00 };
+	unsigned char b2[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
+	unsigned char b3[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x11, 0x00 };
+	unsigned char b4[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x62, 0x00, 0x32, 0x00 };
+	unsigned char rr[0x40000];
+	send (dev, 1, b1, 0x08);
+	recv (dev, 1, rr, 0x0a);
+	send (dev, 1, b2, 0x06);
+	recv (dev, 1, rr, 0x08);
+	recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
+	send (dev, 1, b3, 0x08);
+	recv (dev, 1, rr, 0x0a);	// this comes back with one bit different on linux...
+	send (dev, 1, b4, 0x0a);
+	recv (dev, 1, rr, 0x0a);
+}
+
+static void do_d(struct fp_img_dev *dev)
+{
+	unsigned char b1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x14, 0x00 };
+	unsigned char rr[0x0a];
+	send (dev, 1, b1, 0x08);
+	recv (dev, 1, rr, 0x0a);
+}
+
+static void do_e(struct fp_img_dev *dev)
+{
+	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x88, 0x13, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
+	unsigned char rr[0x08];
+	send (dev, 1, b1, 0x0e);
+	recv (dev, 1, rr, 0x08);
+}
+
+static void do_2(struct fp_img_dev *dev)
+{
+	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
+	unsigned char rr[20*PKTSIZE];
+	send (dev, 1, b1, 0x0e);
+	recv (dev, 1, rr, 0x08);
+	recv (dev, 2, rr, 20*PKTSIZE);	// read a small image?
+}
+
+/******************************************************************************************************/
+enum {
+	M_NEXT_D,
+	M_NEXT_B,
+	M_NEXT_E,
+	M_NEXT_NUM_STATES,
+};
+
+static void m_next_state(struct fpi_ssm *ssm)
+{
+	struct fp_img_dev *dev = ssm->priv;
+
+	switch (ssm->cur_state) {
+	case M_NEXT_D:
+		do_d(dev);
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_NEXT_B:
+		do_b(dev);
+		fpi_ssm_next_state(ssm);
+		break;
+
+	case M_NEXT_E:
+		do_e(dev);
+		break;
+	}
+}
+
 
 /******************************************************************************************************/
 enum {
@@ -155,33 +233,13 @@ static void m_read_state(struct fpi_ssm *ssm)
 
 	switch (ssm->cur_state) {
 	case M_READ_B:
-	{
-		unsigned char b1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x14, 0x00 };
-		unsigned char b2[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
-		unsigned char b3[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x11, 0x00 };
-		unsigned char b4[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x62, 0x00, 0x32, 0x00 };
-		unsigned char rr[0x40000];
-		send (dev, 1, b1, 0x08);
-		recv (dev, 1, rr, 0x0a);
-		send (dev, 1, b2, 0x06);
-		recv (dev, 1, rr, 0x08);
-		recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
-		send (dev, 1, b3, 0x08);
-		recv (dev, 1, rr, 0x0a);
-		send (dev, 1, b4, 0x0a);
-		recv (dev, 1, rr, 0x0a);
+		do_b(dev);
 		fpi_ssm_next_state(ssm);
 		break;
-	}
+
 	case M_READ_2:
-	{
-		unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
-		unsigned char rr[20*PKTSIZE];
-		send (dev, 1, b1, 0x0e);
-		recv (dev, 1, rr, 0x08);
-		recv (dev, 2, rr, 20*PKTSIZE);
+		do_2(dev);
 		break;
-	}
 	}
 }
 
@@ -197,32 +255,24 @@ enum {
 static void m_init_state(struct fpi_ssm *ssm)
 {
 	struct fp_img_dev *dev = ssm->priv;
+	struct fpi_ssm *subsm;
 
 	switch (ssm->cur_state) {
 	case M_INIT_Q:
-	{
-		unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
-		unsigned char q2[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x55, 0x00, 0x08, 0x00 };
-		unsigned char rr[0x30];
-		send (dev, 1, q1, 0x07);
-		recv (dev, 1, rr, 0x30);
-		send (dev, 1, q1, 0x07);
-		recv (dev, 1, rr, 0x30);
-		send (dev, 1, q2, 0x0a);
-		recv (dev, 1, rr, 0x0a);
+		do_q(dev);
 		fpi_ssm_next_state(ssm);
 		break;
-	}
+
 	case M_INIT_READ:
-	{
-		struct fpi_ssm *subsm = fpi_ssm_new(dev->dev, m_read_state, M_READ_NUM_STATES);
+		subsm = fpi_ssm_new(dev->dev, m_read_state, M_READ_NUM_STATES);
 		subsm->priv = dev;
 		fpi_ssm_start_subsm(ssm, subsm);
 		break;
-	}
+
 	case M_INIT_NEXT:
-		fp_dbg("M_INIT_NEXT");
-		fpi_ssm_next_state(ssm);
+		subsm = fpi_ssm_new(dev->dev, m_next_state, M_NEXT_NUM_STATES);
+		subsm->priv = dev;
+		fpi_ssm_start_subsm(ssm, subsm);
 		break;
 	}
 }
