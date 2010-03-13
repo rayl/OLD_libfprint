@@ -188,19 +188,24 @@ static int recv(struct fp_img_dev *dev)
 #define PKTSIZE 292
 #define N_PKTS   16
 
-static int load (struct fp_img_dev *dev)
+static int load (struct fp_img_dev *dev, unsigned char *buf, int *len)
 {
-	char buf[N_PKTS*PKTSIZE];
-	int len;
+	int n;
+
+	*len = 0;
 
 	do {
-		int r = libusb_bulk_transfer(dev->udev, EP_IN(2), buf, N_PKTS*PKTSIZE, &len, BULK_TIMEOUT);
+		int r = libusb_bulk_transfer(dev->udev, EP_IN(2), buf, N_PKTS*PKTSIZE, &n, BULK_TIMEOUT);
+
+		buf += n;
+		*len += n;
 
 		if (r < 0 && r != -7) {
 			fp_err("bulk read error %d", r);
 			return r;
 		}
-	} while (len == N_PKTS*PKTSIZE);
+
+	} while (n == N_PKTS*PKTSIZE);
 
 	return 0;
 }
@@ -358,6 +363,16 @@ static void GetFingerState (struct fp_img_dev *dev)
 	dump();
 }
 
+/* buffer to hold raw image data packets */
+static unsigned char image_buf[1024*1024];
+static int image_len;
+
+static void LoadImage (struct fp_img_dev *dev)
+{
+	load(dev, image_buf, &image_len);
+}
+
+
 
 /******************************************************************************************************/
 static void do_q (struct fp_img_dev *dev)
@@ -370,10 +385,10 @@ static void do_b (struct fp_img_dev *dev)
 {
 	GetParam (dev, 0x14);
 	AbortPrint (dev);
-	load (dev);		// flush hw output buffer?
-	GetParam (dev, 0x11);	// this comes back different on linux...
-				//    expect  xxxx0000 04000000 0800
-				//    receive xxxx0000 04000000 0000
+	LoadImage (dev);
+	GetParam (dev, 0x11);		// this comes back different on linux...
+					//    expect  xxxx0000 04000000 0800
+					//    receive xxxx0000 04000000 0000
 	SetParam (dev, 0x62, 0x32);
 }
 
@@ -414,7 +429,7 @@ static void do_2(struct fp_img_dev *dev)
 {
 	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 }; // GetPrint
 	swap (dev, b1, 0x0e);
-	load (dev);		// read a small image?
+	LoadImage (dev);		// read a small image?
 }
 
 
