@@ -47,7 +47,7 @@
  *           B       4         8
  *           2       1       366
  *           C      10        24
- *           3       1       366
+ *           2       1       366
  *           D       2         2
  *           B       4         8
  *           E       1         2
@@ -58,12 +58,12 @@
  *     m_init { Q, m_read, m_next }
  *     m_read { B, 2 }
  *     m_next { D, B, E }
- *     m_loop { A, 1, m_read, C, 3, m_next }
+ *     m_loop { A, 1, m_read, C, 2, m_next }
  *
  *
- * The data that comes back in blocks 1, 2, and 3 above
- * seems to be split up into 292 byte packets. blocks 2 and 3
- * contain exactly 20 packets, while block 1 contains a variable
+ * The data that comes back in blocks 1 and 2 above
+ * seems to be split up into 292 byte packets. block 2 
+ * contains exactly 20 packets, while block 1 contains a variable
  * number of packets.
  *
  * Each packet is structured as follows:
@@ -281,11 +281,6 @@ static void do_2(struct fp_img_dev *dev)
 	load (dev);		// read a small image?
 }
 
-static void do_3(struct fp_img_dev *dev)
-{
-	fp_dbg("---");
-}
-
 
 /******************************************************************************************************/
 enum {
@@ -348,7 +343,7 @@ enum {
 	M_LOOP_1,
 	M_LOOP_READ,
 	M_LOOP_C,
-	M_LOOP_3,
+	M_LOOP_2,
 	M_LOOP_NEXT,
 	M_LOOP_NUM_STATES,
 };
@@ -376,8 +371,8 @@ static void m_loop_state(struct fpi_ssm *ssm)
 		fpi_ssm_next_state(ssm);
 		break;
 
-	case M_LOOP_3:
-		do_3(dev);
+	case M_LOOP_2:
+		do_2(dev);
 		fpi_ssm_next_state(ssm);
 		break;
 
