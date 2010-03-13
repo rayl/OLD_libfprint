@@ -59,6 +59,51 @@
  *     m_read { B, 2 }
  *     m_next { D, B, E }
  *     m_loop { A, 1, m_read, C, 3, m_next }
+ *
+ *
+ * The data that comes back in blocks 1, 2, and 3 above
+ * seems to be split up into 292 byte packets. blocks 2 and 3
+ * contain exactly 20 packets, while block 1 contains a variable
+ * number of packets.
+ *
+ * Each packet is structured as follows:
+ *
+ *   01 FE
+ *   5E 00
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- -- -- --
+ *   14 03 6A 00
+ *   00 5E
+ *    -- -- -- --  -- -- -- --  -- -- -- --  -- --
+ *
+ * First two bytes are "01 FE" (except every 20th packet is "01 01")
+ *
+ * Next two bytes seem to be some kind of offset which increments
+ * by about 0x1f or 0x20 on each packet (except every 20th packet
+ * is a bit mangled)
+ *
+ * This is followed by 268 bytes of variable data.
+ *
+ * Then a constant "14 03 6A 00" header
+ *
+ * Then the index from bytes 2-3, but swapped.
+ *
+ * Then 14 bytes of variable data.
  */
 
 struct validity_dev {
