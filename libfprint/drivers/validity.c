@@ -205,6 +205,26 @@ static int load (struct fp_img_dev *dev)
 	return 0;
 }
 
+static void dump (void)
+{
+	int x = 0;
+	while (xlen - x > 3) {
+		fp_dbg("%02x %02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2], xbuf[x+3]);
+		x += 4;
+	}
+	switch (xlen-x) {
+	case 3:
+		fp_dbg("%02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2]);
+		break;
+	case 2:
+		fp_dbg("%02x %02x", xbuf[x], xbuf[x+1]);
+		break;
+	case 1:
+		fp_dbg("%02x", xbuf[x]);
+		break;
+	}
+}
+
 static int swap (struct fp_img_dev *dev, unsigned char *data, size_t len)
 {
 	send(dev, data, len);
@@ -247,7 +267,9 @@ static int swap (struct fp_img_dev *dev, unsigned char *data, size_t len)
 static void Reset (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00 };
+	fp_dbg("");
 	swap (dev, q1, 0x07);
+	dump ();
 }
 
 /* GetVersion (00 00 01 00)
@@ -257,7 +279,9 @@ static void Reset (struct fp_img_dev *dev)
 static void GetVersion (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
+	fp_dbg("");
 	swap (dev, q1, 0x07);
+	dump ();
 }
 
 /* GetPrint (00 00 03 00)
@@ -277,7 +301,9 @@ static void GetParam (struct fp_img_dev *dev, int param)
 	unsigned char q1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00 };
 	q1[6] = lo(param);
 	q1[7] = hi(param);
+	fp_dbg("%04x", param);
 	swap (dev, q1, 0x08);
+	dump();
 }
 
 /* SetParam (00 00 05 00)
@@ -291,7 +317,9 @@ static void SetParam (struct fp_img_dev *dev, int param, int value)
 	q1[7] = hi(param);
 	q1[8] = lo(value);
 	q1[9] = hi(value);
+	fp_dbg("%04x = %04x", param, value);
 	swap (dev, q1, 0x0a);
+	dump();
 }
 
 /* GetConfiguration (00 00 06 00)
@@ -301,7 +329,9 @@ static void SetParam (struct fp_img_dev *dev, int param, int value)
 static void GetConfiguration (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x06, 0x00 };
+	fp_dbg("");
 	swap (dev, q1, 0x06);
+	dump();
 }
 
 /* AbortPrint (00 00 0e 00)
@@ -311,7 +341,9 @@ static void GetConfiguration (struct fp_img_dev *dev)
 static void AbortPrint (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
+	fp_dbg("");
 	swap (dev, q1, 0x06);
+	dump();
 }
 
 /* GetFingerState (00 00 16 00)
@@ -321,7 +353,9 @@ static void AbortPrint (struct fp_img_dev *dev)
 static void GetFingerState (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
+	fp_dbg("");
 	swap (dev, q1, 0x06);
+	dump();
 }
 
 
