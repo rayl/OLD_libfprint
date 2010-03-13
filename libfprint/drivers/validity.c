@@ -149,7 +149,7 @@ static void do_b(struct fp_img_dev *dev)
 	recv (dev, 1, rr, 0x0a);
 	send (dev, 1, b2, 0x06);
 	recv (dev, 1, rr, 0x08);
-	//recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
+	recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
 	send (dev, 1, b3, 0x08);
 	recv (dev, 1, rr, 0x0a);	// this comes back with one bit different on linux...
 	send (dev, 1, b4, 0x0a);
