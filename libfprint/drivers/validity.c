@@ -117,34 +117,7 @@ struct validity_dev {
 
 #define PKTSIZE 292
 
-/* Protocol notes from Damir Syabitov on vfs101driver group:
-
-     00 00 01 00    - Reset
-                        This causes the device to re-enumerate.
-
-     00 00 02 00    - GetVersion
-     00 00 03 00    - GetPrint
-     00 00 04 00    - GetParam
-     00 00 05 00    - SetParam
-     00 00 06 00    - GetConfiguration
-     00 00 07 00    - DownloadPatch
-     00 00 08 00    - GetRateData
-     00 00 09 00    - IspRequest
-     00 00 0A 00    - ProgramFlash
-     00 00 0B 00    - EraseFlash
-     00 00 0C 00    - LedStates
-     00 00 0D 00    - LedEvent
-     00 00 0E 00    - AbortPrint
-     00 00 0F 00    - Spare2
-     00 00 10 00    - Spare3
-     00 00 11 00    - Spare4
-     00 00 12 00    - Peek
-     00 00 13 00    - Poke
-     00 00 14 00    - SensorSpiTrans
-     00 00 15 00    - SensorGPIO
-     00 00 16 00    - GetFingerState 
-*/
-
+/******************************************************************************************************/
 /* The first two bytes of data will be overwritten with seqnum */
 static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 {
@@ -206,6 +179,120 @@ static int load (struct fp_img_dev *dev)
 	recv(dev, 2, rr, 0x40000);
 }
 
+
+/******************************************************************************************************
+  Protocol notes from Damir Syabitov on vfs101driver group:
+
+     00 00 01 00    - Reset
+     00 00 02 00    - GetVersion
+     00 00 03 00    - GetPrint
+     00 00 04 00    - GetParam
+     00 00 05 00    - SetParam
+     00 00 06 00    - GetConfiguration
+     00 00 07 00      DownloadPatch
+     00 00 08 00      GetRateData
+     00 00 09 00      IspRequest
+     00 00 0A 00      ProgramFlash
+     00 00 0B 00      EraseFlash
+     00 00 0C 00      LedStates
+     00 00 0D 00      LedEvent
+     00 00 0E 00    - AbortPrint
+     00 00 0F 00      Spare2
+     00 00 10 00      Spare3
+     00 00 11 00      Spare4
+     00 00 12 00      Peek
+     00 00 13 00      Poke
+     00 00 14 00      SensorSpiTrans
+     00 00 15 00      SensorGPIO
+     00 00 16 00    - GetFingerState 
+*/
+
+/* Reset (00 00 01 00)
+ *
+ *  Cause the device to reenumerate on the USB bus.
+ */
+static void Reset (struct fp_img_dev *dev)
+{
+	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00 };
+	swap (dev, q1, 0x07);
+}
+
+/* GetVersion (00 00 01 00)
+ *
+ *  Retrieve version string from the device.
+ */
+static void GetVersion (struct fp_img_dev *dev)
+{
+	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
+	swap (dev, q1, 0x07);
+}
+
+/* GetPrint (00 00 03 00)
+ *
+ *  Retrieve fingerprint image information.
+ */
+static void GetPrint (struct fp_img_dev *dev)
+{
+}
+
+/* GetParam (00 00 04 00)
+ *
+ *  Retrieve a parameter value from the device.
+ */
+static void GetParam (struct fp_img_dev *dev, int param)
+{
+	unsigned char q1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00 };
+	q1[6] = param & 0xff;
+	q1[7] = (param>>8) & 0xff;
+	swap (dev, q1, 0x08);
+}
+
+/* SetParam (00 00 05 00)
+ *
+ *  Set a parameter value on the device.
+ */
+static void SetParam (struct fp_img_dev *dev, int param, int value)
+{
+	unsigned char q1[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	q1[6] = param & 0xff;
+	q1[7] = (param>>8) & 0xff;
+	q1[8] = value & 0xff;
+	q1[9] = (value>>8) & 0xff;
+	swap (dev, q1, 0x0a);
+}
+
+/* GetConfiguration (00 00 06 00)
+ *
+ *  Retrieve config info from the device.
+ */
+static void GetConfiguration (struct fp_img_dev *dev)
+{
+	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x06, 0x00 };
+	swap (dev, q1, 0x06);
+}
+
+/* AbortPrint (00 00 0e 00)
+ *
+ *  Abort the current scan operation.
+ */
+static void AbortPrint (struct fp_img_dev *dev)
+{
+	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
+	swap (dev, q1, 0x06);
+}
+
+/* GetFingerState (00 00 16 00)
+ *
+ *  Poll device for current finger state.
+ */
+static void GetFingerState (struct fp_img_dev *dev)
+{
+	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
+	swap (dev, q1, 0x06);
+}
+
+
+/******************************************************************************************************/
 static void do_q(struct fp_img_dev *dev)
 {
 	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };	// GetVersion
