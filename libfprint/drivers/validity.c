@@ -151,7 +151,9 @@ static void do_b(struct fp_img_dev *dev)
 	recv (dev, 1, rr, 0x08);
 	recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
 	send (dev, 1, b3, 0x08);
-	recv (dev, 1, rr, 0x0a);	// this comes back with one bit different on linux...
+	recv (dev, 1, rr, 0x0a);	// this comes back different on linux...
+					// expect  xxxx0000 04000000 0800
+					// receive xxxx0000 04000000 0000
 	send (dev, 1, b4, 0x0a);
 	recv (dev, 1, rr, 0x0a);
 }
@@ -174,7 +176,9 @@ static void do_e(struct fp_img_dev *dev)
 	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x88, 0x13, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
 	unsigned char rr[0x08];
 	send (dev, 1, b1, 0x0e);
-	recv (dev, 1, rr, 0x08);	// this comes back with two extra bits set on linux...
+	recv (dev, 1, rr, 0x08);	// this comes back different on linux...
+					// expect  xxxx0000 03000000
+					// receive xxxx0000 03000c00
 }
 
 static void do_1(struct fp_img_dev *dev)
