@@ -127,13 +127,10 @@ static inline int hi (int n)
 #define EP_IN(n)			(n | LIBUSB_ENDPOINT_IN)
 #define EP_OUT(n)			(n | LIBUSB_ENDPOINT_OUT)
 
-#define BULK_TIMEOUT 20
+#define BULK_TIMEOUT 100
 
-#define PKTSIZE 292
-
-/******************************************************************************************************/
 /* The first two bytes of data will be overwritten with seqnum */
-static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
+static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
 {
 	struct validity_dev *vdev = dev->priv;
 	int transferred;
@@ -144,7 +141,7 @@ static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 	data[0] = lo(vdev->seqnum);
 	data[1] = hi(vdev->seqnum);
 
-	r = libusb_bulk_transfer(dev->udev, EP_OUT(n), data, len, &transferred, BULK_TIMEOUT);
+	r = libusb_bulk_transfer(dev->udev, EP_OUT(1), data, len, &transferred, BULK_TIMEOUT);
 
 	if (r < 0) {
 		fp_err("bulk write error %d", r);
@@ -159,19 +156,27 @@ static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 	}
 }
 
-static int recv(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
+/* The last response from the device, valid immediately after a swap() */
+static char xbuf[0x40];
+static int xlen;
+
+static int recv(struct fp_img_dev *dev)
 {
 	struct validity_dev *vdev = dev->priv;
 	int transferred;
 	int r;
 
-	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
-
-	r = libusb_bulk_transfer(dev->udev, EP_IN(n), data, len, &transferred, BULK_TIMEOUT);
+	r = libusb_bulk_transfer(dev->udev, EP_IN(1), xbuf, 0x40, &xlen, BULK_TIMEOUT);
 
 	if (r < 0 && r != -7) {
 		fp_err("bulk read error %d", r);
 		return r;
+	}
+
+	fp_dbg("seq:%04x len:%zd", vdev->seqnum, xlen);
+
+	if ((lo(vdev->seqnum) != xbuf[0]) || (hi(vdev->seqnum) != xbuf[1])) {
+		fp_err("Seqnum mismatch, got %04x, expected %04x", (xbuf[1]<<8)|xbuf[0], vdev->seqnum);
 	}
 
 	vdev->seqnum++;
@@ -179,18 +184,32 @@ static int recv(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 	return 0;
 }
 
-static int swap (struct fp_img_dev *dev, unsigned char *data, size_t len)
-{
-	unsigned char r[0x40];
-	send(dev, 1, data, len);
-	usleep(2000);
-	recv(dev, 1, r, 0x40);
-}
+/* The device seems to send back 16 frames of 292 bytes at a time */
+#define PKTSIZE 292
+#define N_PKTS   16
 
 static int load (struct fp_img_dev *dev)
 {
-	unsigned char rr[0x40000];
-	recv(dev, 2, rr, 0x40000);
+	char buf[N_PKTS*PKTSIZE];
+	int len;
+
+	do {
+		int r = libusb_bulk_transfer(dev->udev, EP_IN(2), buf, N_PKTS*PKTSIZE, &len, BULK_TIMEOUT);
+
+		if (r < 0 && r != -7) {
+			fp_err("bulk read error %d", r);
+			return r;
+		}
+	} while (len == N_PKTS*PKTSIZE);
+
+	return 0;
+}
+
+static int swap (struct fp_img_dev *dev, unsigned char *data, size_t len)
+{
+	send(dev, data, len);
+	usleep(2000);
+	recv(dev);
 }
 
 
