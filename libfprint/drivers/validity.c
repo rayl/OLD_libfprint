@@ -303,11 +303,13 @@ static void GetVersion (struct fp_img_dev *dev)
  *
  *  Retrieve fingerprint image information.
  */
-static void GetPrint (struct fp_img_dev *dev, unsigned char args[8])
+static void GetPrint (struct fp_img_dev *dev, int count, unsigned char args[6])
 {
 	unsigned char q1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 	int i;
-	for (i=0; i<7; i++) q1[6+i] = args[i];
+	q1[6] = lo(count);
+	q1[7] = hi(count);
+	for (i=0; i<6; i++) q1[8+i] = args[i];
 	fp_dbg("");
 	swap (dev, q1, 0x0e);
 	dump ();
@@ -432,10 +434,10 @@ static void do_d (struct fp_img_dev *dev)
 
 static void do_e (struct fp_img_dev *dev)
 {
-	unsigned char args[8] = { 0x88, 0x13, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
-	GetPrint (dev, args);	// this comes back different on linux...
-				//   expect  xxxx0000 03000000
-				//   receive xxxx0000 03000c00
+	unsigned char args[6] = { 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
+	GetPrint (dev, 5000, args);	// this comes back different on linux...
+					//   expect  xxxx0000 03000000
+					//   receive xxxx0000 03000c00
 }
 
 static void do_1(struct fp_img_dev *dev)
@@ -447,8 +449,8 @@ static void do_1(struct fp_img_dev *dev)
 
 static void do_2(struct fp_img_dev *dev)
 {
-	unsigned char args[8] = { 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
-	GetPrint (dev, args);
+	unsigned char args[6] = { 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
+	GetPrint (dev, 20, args);
 	LoadImage (dev);
 }
 
