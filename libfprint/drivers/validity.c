@@ -318,7 +318,7 @@ static void start_finger_detection(struct fp_img_dev *dev)
 	int r;
 
 	do {
-		usleep(1000000);
+		usleep(50000);
 		send (dev, 1, q1, 0x06);
 		recv (dev, 1, rr, 0x0b);
 	} while (rr[0x0a] != 0x02);
