@@ -162,25 +162,30 @@ static int recv(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 
 	vdev->seqnum++;
 
-	if (transferred < len) {
-		fp_err("unexpected short read %d/%zd", transferred, len);
-		return -EIO;
-	} else {
-		return 0;
-	}
+	return 0;
+}
+
+static int swap (struct fp_img_dev *dev, unsigned char *data, size_t len)
+{
+	unsigned char r[0x40];
+	send(dev, 1, data, len);
+	usleep(2000);
+	recv(dev, 1, r, 0x40);
+}
+
+static int load (struct fp_img_dev *dev)
+{
+	unsigned char rr[0x40000];
+	recv(dev, 2, rr, 0x40000);
 }
 
 static void do_q(struct fp_img_dev *dev)
 {
 	unsigned char q1[0x07] = { 0x00, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00 };
 	unsigned char q2[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x55, 0x00, 0x08, 0x00 };
-	unsigned char rr[0x30];
-	send (dev, 1, q1, 0x07);
-	recv (dev, 1, rr, 0x30);
-	send (dev, 1, q1, 0x07);
-	recv (dev, 1, rr, 0x30);
-	send (dev, 1, q2, 0x0a);
-	recv (dev, 1, rr, 0x0a);
+	swap (dev, q1, 0x07);
+	swap (dev, q1, 0x07);
+	swap (dev, q2, 0x0a);
 }
 
 static void do_b(struct fp_img_dev *dev)
@@ -189,18 +194,13 @@ static void do_b(struct fp_img_dev *dev)
 	unsigned char b2[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x0E, 0x00 };
 	unsigned char b3[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x11, 0x00 };
 	unsigned char b4[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x62, 0x00, 0x32, 0x00 };
-	unsigned char rr[0x40000];
-	send (dev, 1, b1, 0x08);
-	recv (dev, 1, rr, 0x0a);
-	send (dev, 1, b2, 0x06);
-	recv (dev, 1, rr, 0x08);
-	recv (dev, 2, rr, 0x40000);	// flush hw output buffer?
-	send (dev, 1, b3, 0x08);
-	recv (dev, 1, rr, 0x0a);	// this comes back different on linux...
-					// expect  xxxx0000 04000000 0800
-					// receive xxxx0000 04000000 0000
-	send (dev, 1, b4, 0x0a);
-	recv (dev, 1, rr, 0x0a);
+	swap (dev, b1, 0x08);
+	swap (dev, b2, 0x06);
+	load (dev);		// flush hw output buffer?
+	swap (dev, b3, 0x08);	// this comes back different on linux...
+				// expect  xxxx0000 04000000 0800
+				// receive xxxx0000 04000000 0000
+	swap (dev, b4, 0x0a);
 }
 
 static void do_c(struct fp_img_dev *dev)
@@ -211,19 +211,15 @@ static void do_c(struct fp_img_dev *dev)
 static void do_d(struct fp_img_dev *dev)
 {
 	unsigned char b1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x14, 0x00 };
-	unsigned char rr[0x0a];
-	send (dev, 1, b1, 0x08);
-	recv (dev, 1, rr, 0x0a);
+	swap (dev, b1, 0x08);
 }
 
 static void do_e(struct fp_img_dev *dev)
 {
 	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x88, 0x13, 0x01, 0x00, 0x00, 0x00, 0x01, 0x01 };
-	unsigned char rr[0x08];
-	send (dev, 1, b1, 0x0e);
-	recv (dev, 1, rr, 0x08);	// this comes back different on linux...
-					// expect  xxxx0000 03000000
-					// receive xxxx0000 03000c00
+	swap (dev, b1, 0x0e);	// this comes back different on linux...
+				// expect  xxxx0000 03000000
+				// receive xxxx0000 03000c00
 }
 
 static void do_1(struct fp_img_dev *dev)
@@ -234,10 +230,8 @@ static void do_1(struct fp_img_dev *dev)
 static void do_2(struct fp_img_dev *dev)
 {
 	unsigned char b1[0x0e] = { 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x14, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01 };
-	unsigned char rr[20*PKTSIZE];
-	send (dev, 1, b1, 0x0e);
-	recv (dev, 1, rr, 0x08);
-	recv (dev, 2, rr, 20*PKTSIZE);	// read a small image?
+	swap (dev, b1, 0x0e);
+	load (dev);		// read a small image?
 }
 
 static void do_3(struct fp_img_dev *dev)
@@ -368,8 +362,7 @@ static void start_finger_detection(struct fp_img_dev *dev)
 
 	do {
 		usleep(50000);
-		send (dev, 1, q1, 0x06);
-		recv (dev, 1, rr, 0x0b);
+		swap (dev, q1, 0x06);
 	} while (rr[0x0a] != 0x02);
 
 	return;
