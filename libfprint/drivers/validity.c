@@ -141,7 +141,7 @@ static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
 	int transferred;
 	int r;
 
-	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
+	//fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
 
 	data[0] = lo(vdev->seqnum);
 	data[1] = hi(vdev->seqnum);
@@ -178,7 +178,7 @@ static int recv(struct fp_img_dev *dev)
 		return r;
 	}
 
-	fp_dbg("seq:%04x len:%zd", vdev->seqnum, xlen);
+	//fp_dbg("seq:%04x len:%zd", vdev->seqnum, xlen);
 
 	if ((lo(vdev->seqnum) != xbuf[0]) || (hi(vdev->seqnum) != xbuf[1])) {
 		fp_err("Seqnum mismatch, got %04x, expected %04x", xx(xbuf[1],xbuf[0]), vdev->seqnum);
@@ -217,20 +217,25 @@ static int load (struct fp_img_dev *dev, unsigned char *buf, int *len)
 
 static void dump (void)
 {
-	int x = 0;
+	int x = 6;
+
+	//fp_dbg("Seq: %04x", xx(xbuf[1], xbuf[0]));
+	if ((xbuf[2] != 0) || (xbuf[3] != 0)) fp_dbg("!!!: %02x %02x", xbuf[2], xbuf[3]);
+	//fp_dbg("Cmd: %02x %02x", xbuf[4], xbuf[5]);
+
 	while (xlen - x > 3) {
-		fp_dbg("%02x %02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2], xbuf[x+3]);
+		fp_dbg("     %02x %02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2], xbuf[x+3]);
 		x += 4;
 	}
 	switch (xlen-x) {
 	case 3:
-		fp_dbg("%02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2]);
+		fp_dbg("     %02x %02x %02x", xbuf[x], xbuf[x+1], xbuf[x+2]);
 		break;
 	case 2:
-		fp_dbg("%02x %02x", xbuf[x], xbuf[x+1]);
+		fp_dbg("     %02x %02x", xbuf[x], xbuf[x+1]);
 		break;
 	case 1:
-		fp_dbg("%02x", xbuf[x]);
+		fp_dbg("     %02x", xbuf[x]);
 		break;
 	}
 }
@@ -381,6 +386,8 @@ static int image_len;
 static void LoadImage (struct fp_img_dev *dev)
 {
 	load(dev, image_buf, &image_len);
+	fp_dbg("  Got %d bytes", image_len);
+	if (image_len % PKTSIZE) fp_err("  incomplete packet?");
 }
 
 
