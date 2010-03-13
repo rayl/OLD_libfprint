@@ -110,6 +110,20 @@ struct validity_dev {
 	int seqnum;
 };
 
+
+/******************************************************************************************************/
+static inline int lo (int n)
+{
+	return n & 0xff;
+}
+
+static inline int hi (int n)
+{
+	return (n>>8) & 0xff;
+}
+
+
+/******************************************************************************************************/
 #define EP_IN(n)			(n | LIBUSB_ENDPOINT_IN)
 #define EP_OUT(n)			(n | LIBUSB_ENDPOINT_OUT)
 
@@ -127,8 +141,8 @@ static int send(struct fp_img_dev *dev, int n, unsigned char *data, size_t len)
 
 	fp_dbg("seq:%04x len:%zd", vdev->seqnum, len);
 
-	data[0] = vdev->seqnum & 0xff;
-	data[1] = (vdev->seqnum>>8) & 0xff;
+	data[0] = lo(vdev->seqnum);
+	data[1] = hi(vdev->seqnum);
 
 	r = libusb_bulk_transfer(dev->udev, EP_OUT(n), data, len, &transferred, BULK_TIMEOUT);
 
@@ -242,8 +256,8 @@ static void GetPrint (struct fp_img_dev *dev)
 static void GetParam (struct fp_img_dev *dev, int param)
 {
 	unsigned char q1[0x08] = { 0x00, 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00 };
-	q1[6] = param & 0xff;
-	q1[7] = (param>>8) & 0xff;
+	q1[6] = lo(param);
+	q1[7] = hi(param);
 	swap (dev, q1, 0x08);
 }
 
@@ -254,10 +268,10 @@ static void GetParam (struct fp_img_dev *dev, int param)
 static void SetParam (struct fp_img_dev *dev, int param, int value)
 {
 	unsigned char q1[0x0a] = { 0x00, 0x00, 0x00, 0x00, 0x05, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	q1[6] = param & 0xff;
-	q1[7] = (param>>8) & 0xff;
-	q1[8] = value & 0xff;
-	q1[9] = (value>>8) & 0xff;
+	q1[6] = lo(param);
+	q1[7] = hi(param);
+	q1[8] = lo(value);
+	q1[9] = hi(value);
 	swap (dev, q1, 0x0a);
 }
 
