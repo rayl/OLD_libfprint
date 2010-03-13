@@ -122,6 +122,11 @@ static inline unsigned char hi (int n)
 	return (n>>8) & 0xff;
 }
 
+static inline unsigned short xx (int h, int l)
+{
+	return (h<<8)|l;
+}
+
 
 /******************************************************************************************************/
 #define EP_IN(n)			(n | LIBUSB_ENDPOINT_IN)
@@ -176,7 +181,7 @@ static int recv(struct fp_img_dev *dev)
 	fp_dbg("seq:%04x len:%zd", vdev->seqnum, xlen);
 
 	if ((lo(vdev->seqnum) != xbuf[0]) || (hi(vdev->seqnum) != xbuf[1])) {
-		fp_err("Seqnum mismatch, got %04x, expected %04x", (xbuf[1]<<8)|xbuf[0], vdev->seqnum);
+		fp_err("Seqnum mismatch, got %04x, expected %04x", xx(xbuf[1],xbuf[0]), vdev->seqnum);
 	}
 
 	vdev->seqnum++;
