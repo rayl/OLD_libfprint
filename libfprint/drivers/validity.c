@@ -371,12 +371,13 @@ static void AbortPrint (struct fp_img_dev *dev)
  *
  *  Poll device for current finger state.
  */
-static void GetFingerState (struct fp_img_dev *dev)
+static int GetFingerState (struct fp_img_dev *dev)
 {
 	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
 	fp_dbg("");
 	swap (dev, q1, 0x06);
 	dump();
+	return xbuf[0x0a];
 }
 
 /* buffer to hold raw image data packets */
@@ -439,8 +440,9 @@ static void do_e (struct fp_img_dev *dev)
 
 static void do_1(struct fp_img_dev *dev)
 {
-	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
-	// swap q1 until last byte of response is 0x02, just like finger detection, then load() large image
+	while (GetFingerState(dev) != 0x02)
+		usleep(50000);  // should this be async?
+	LoadImage (dev);
 }
 
 static void do_2(struct fp_img_dev *dev)
@@ -565,16 +567,12 @@ static void finger_detection_cb(struct libusb_transfer *transfer);
 
 static void start_finger_detection(struct fp_img_dev *dev)
 {
-	unsigned char q1[0x06] = { 0x00, 0x00, 0x00, 0x00, 0x16, 0x00 };
-	unsigned char rr[0x0b];
 	struct libusb_transfer *transfer;
 	unsigned char *data;
 	int r;
 
-	do {
+	while (GetFingerState(dev) != 0x02)
 		usleep(50000);
-		swap (dev, q1, 0x06);
-	} while (rr[0x0a] != 0x02);
 
 	return;
 
