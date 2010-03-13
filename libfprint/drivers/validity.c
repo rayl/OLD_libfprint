@@ -107,17 +107,17 @@
  */
 
 struct validity_dev {
-	int seqnum;
+	unsigned int seqnum;
 };
 
 
 /******************************************************************************************************/
-static inline int lo (int n)
+static inline unsigned char lo (int n)
 {
 	return n & 0xff;
 }
 
-static inline int hi (int n)
+static inline unsigned char hi (int n)
 {
 	return (n>>8) & 0xff;
 }
@@ -157,7 +157,7 @@ static int send(struct fp_img_dev *dev, unsigned char *data, size_t len)
 }
 
 /* The last response from the device, valid immediately after a swap() */
-static char xbuf[0x40];
+static unsigned char xbuf[0x40];
 static int xlen;
 
 static int recv(struct fp_img_dev *dev)
